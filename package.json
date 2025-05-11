@@ -3,6 +3,7 @@
 	"version": "1.0.0",
 	"description": "Socket.IO server for Social Shake app",
 	"main": "socket-server.js",
+	"type": "module",
 	"scripts": {
 		"start": "node socket-server.js",
 		"dev": "nodemon socket-server.js"
