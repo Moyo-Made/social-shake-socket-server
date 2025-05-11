@@ -9,29 +9,6 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-// Types for messages and data
-interface Message {
-  conversationId: string;
-  senderId: string;
-  content: string;
-}
-
-interface ReadData {
-  conversationId: string;
-  userId: string;
-}
-
-interface UnreadCountsUpdate {
-  totalUnread: number;
-  conversationCounts: Record<string, number>;
-}
-
-interface ConversationData {
-  participants: string[];
-  lastMessage?: string;
-  updatedAt?: any;
-  unreadCounts?: Record<string, number>;
-}
 
 // Initialize Firebase Admin SDK
 function initializeFirebaseAdmin() {
@@ -63,7 +40,7 @@ function initializeFirebaseAdmin() {
   }
 
   return admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+    credential: admin.credential.cert(serviceAccount),
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET
   });
 }
@@ -100,7 +77,7 @@ const io = new Server(server, {
 });
 
 // Helper function to emit unread counts to a specific user
-async function emitUnreadCounts(userId: string): Promise<void> {
+async function emitUnreadCounts(userId) {
   try {
     // Query conversations where the user is a participant
     const conversationsRef = db.collection('conversations');
@@ -109,11 +86,11 @@ async function emitUnreadCounts(userId: string): Promise<void> {
       .get();
 
     let totalUnread = 0;
-    const conversationCounts: Record<string, number> = {};
+    const conversationCounts = {};
 
     // Sum up all unread counts across all conversations
     snapshot.docs.forEach((doc) => {
-      const data = doc.data() as ConversationData;
+      const data = doc.data();
       const unreadCount = data.unreadCounts?.[userId] || 0;
       totalUnread += unreadCount;
       conversationCounts[doc.id] = unreadCount;
@@ -123,30 +100,30 @@ async function emitUnreadCounts(userId: string): Promise<void> {
     io.to(`user-${userId}`).emit('unread-counts-update', {
       totalUnread,
       conversationCounts,
-    } as UnreadCountsUpdate);
+    });
   } catch (error) {
     console.error('Error emitting unread counts:', error);
   }
 }
 
 // Socket connection handling
-io.on('connection', (socket: Socket) => {
+io.on('connection', (socket) => {
   console.log('A client connected:', socket.id);
   
   // Join conversation rooms
-  socket.on('join-conversation', (conversationId: string) => {
+  socket.on('join-conversation', (conversationId) => {
     console.log(`User ${socket.id} joined conversation ${conversationId}`);
     socket.join(conversationId);
   });
 
   // Leave conversation room
-  socket.on('leave-conversation', (conversationId: string) => {
+  socket.on('leave-conversation', (conversationId) => {
     console.log(`User ${socket.id} left conversation ${conversationId}`);
     socket.leave(conversationId);
   });
 
   // Handle new message
-  socket.on('send-message', async (message: Message) => {
+  socket.on('send-message', async (message) => {
     try {
       const { conversationId, senderId, content } = message;
 
@@ -167,7 +144,7 @@ io.on('connection', (socket: Socket) => {
       }
 
       // Get conversation data and participants
-      const conversationData = conversationDoc.data() as ConversationData;
+      const conversationData = conversationDoc.data();
       const participants = conversationData?.participants || [];
 
       // Get other participants to mark message as unread for them
@@ -176,7 +153,7 @@ io.on('connection', (socket: Socket) => {
       );
 
       // Create readStatus object with all recipients marked as unread
-      const readStatus: Record<string, boolean> = {};
+      const readStatus = {};
       otherParticipants.forEach((participantId) => {
         readStatus[participantId] = false;
       });
@@ -204,7 +181,7 @@ io.on('connection', (socket: Socket) => {
       };
 
       // Update conversation with last message, timestamp, and unread counts
-      const updateData: Record<string, any> = {
+      const updateData = {
         lastMessage: content,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -247,7 +224,7 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  socket.on('mark-read', async (data: ReadData) => {
+  socket.on('mark-read', async (data) => {
     try {
       const { conversationId, userId } = data;
       
@@ -282,7 +259,7 @@ io.on('connection', (socket: Socket) => {
   });
 
   // Subscribe to user-specific updates
-  socket.on('subscribe-user', (userId: string) => {
+  socket.on('subscribe-user', (userId) => {
     if (userId) {
       console.log(`User ${socket.id} subscribed as ${userId}`);
       socket.join(`user-${userId}`);
